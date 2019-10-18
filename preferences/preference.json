@@ -1,0 +1,28 @@
+{
+  "id": "nest",
+  "name": "Nest",
+  "schema": {
+    "nest.gen": {
+      "text": "Java Code Generation",
+      "type": "section"
+    },
+    "nest.gen.javaDoc": {
+      "text": "JavaDoc",
+      "description": "Generate JavaDoc comments.",
+      "type": "check",
+      "default": true
+    },
+    "nest.gen.useTab": {
+      "text": "Use Tab",
+      "description": "Use Tab for indentation instead of spaces.",
+      "type": "check",
+      "default": false
+    },
+    "nest.gen.indentSpaces": {
+      "text": "Indent Spaces",
+      "description": "Number of spaces for indentation.",
+      "type": "number",
+      "default": 4
+    }
+  }
+}

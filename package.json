@@ -1,0 +1,20 @@
+{
+  "name": "staruml-nestjs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": {
+    "name": "Jeff Jianfeng Jin",
+    "email": "jeff.jianfeng.jin@gmail.com"
+  },
+  "license": "ISC",
+  "engines": {
+    "staruml": ">=3.0.0"
+  },
+  "dependencies": {
+    "lodash.kebabcase": "^4.1.1"
+  }
+}

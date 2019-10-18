@@ -1,0 +1,20 @@
+{
+  "menu": [
+    {
+      "id": "tools",
+      "submenu": [
+        {
+          "label": "NestJS",
+          "id": "tool.nestjs",
+          "submenu": [
+            {
+              "label": "Generate Code...",
+              "id": "tool.nest.generate",
+              "command": "nest:generate"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

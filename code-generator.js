@@ -25,6 +25,9 @@ const fs = require('fs')
 const path = require('path')
 const codegen = require('./codegen-utils')
 const kebabCase = require('lodash.kebabcase');
+const camelCase = require('lodash.camelcase');
+const snakeCase = require('lodash.snakecase');
+const pluralize = require('pluralize')
 
 /**
  * Java Code Generator
@@ -83,6 +86,11 @@ class JavaCodeGenerator {
                     return this.generate(child, fullPath, options)
                 })
             }
+            // if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name === 'Module') {
+            //     codeWriter = new codegen.CodeWriter(this.getIndentString(options))
+            //     this.writeModule(codeWriter, elem, options)
+            //     fs.writeFileSync(fullPath, codeWriter.getData())
+            // }
         } else if (elem instanceof type.UMLClass) {
             // Decorator
             if (elem.stereotype === 'annotationType') {
@@ -197,6 +205,28 @@ class JavaCodeGenerator {
             return (rel instanceof type.UMLInterfaceRealization && rel.source === elem)
         })
         return realizations.map(function (gen) { return gen.target })
+    }
+
+    getName(elem) {
+        var _name = ''
+        // type name
+        if (elem instanceof type.UMLAssociationEnd) {
+            if (elem.name.length > 0) {
+                _name = elem.name
+            } else if (elem.reference instanceof type.UMLModelElement
+                && elem.reference.name.length > 0) {
+                _name = elem.reference.name
+            }
+        } else {
+            _name = elem.name
+        }
+
+        let isOptional = _name.endsWith('?')
+        if (this.hasMultiple(elem)) {
+            return camelCase(pluralize(_name)) + (isOptional ? '?' : '')
+        } else {
+            return camelCase(_name) + (isOptional ? '?' : '')
+        }
     }
 
     /**
@@ -363,10 +393,7 @@ class JavaCodeGenerator {
      * @param {Object} options
      */
     writeMemberVariable(codeWriter, elem, options) {
-        let name = elem.name
-        if (elem instanceof type.UMLAssociationEnd) {
-            name = elem.name.length ? elem.name : elem.reference.name
-        }
+        var name = this.getName(elem)
         if (name.length > 0) {
             var terms = []
             // doc
@@ -399,7 +426,11 @@ class JavaCodeGenerator {
         var pkg = 'typeorm'
 
         if (elem.isID) {
-            column = 'PrimaryColumn'
+            if (elem.isDerived) {
+                column = 'PrimaryGeneratedColumn'
+            } else {
+                column = 'PrimaryColumn'
+            }
         } else {
             if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name.length > 0) {
                 column = elem.stereotype.name
@@ -433,30 +464,39 @@ class JavaCodeGenerator {
      * @param {Object} options
      */
     writeEntityRelation(codeWriter, from, to, options) {
+        var column
+
         if (to) {
             if (this.hasMultiple(from)) {
                 if (this.hasMultiple(to)) {
-                    codeWriter.import('ManyToMany', 'typeorm')
-                    codeWriter.writeLine('@ManyToMany()')
+                    column = 'ManyToMany'
                 } else {
-                    codeWriter.import('ManyToOne', 'typeorm')
-                    codeWriter.writeLine('@ManyToOne()')
+                    column = 'ManyToOne'
                 }
             } else {
                 if (this.hasMultiple(to)) {
-                    codeWriter.import('OneToMany', 'typeorm')
-                    codeWriter.writeLine('@OneToMany()')
+                    column = 'OneToMany'
                 } else {
-                    codeWriter.import('OneToOne', 'typeorm')
-                    codeWriter.writeLine('@OneToOne()')
+                    column = 'OneToOne'
                 }
             }
+            codeWriter.import(column, 'typeorm')
+            let fromEntity = this.getName(from)
+            let toField = this.getName(to.reference)
+            toField = codegen.keywords[toField] ? '_' + toField : toField
+
+
+            if (from.navigable) {
+                codeWriter.writeLine(`@${column}(type => ${to.reference.name}, ${toField} => ${toField}.${fromEntity})`)
+            } else {
+                codeWriter.writeLine(`@${column}(type => ${to.reference.name})`)
+            }
+
 
             if (from.reference !== to.reference) {
                 codeWriter.import(to.reference.name,
                     this.getModulePath(from.reference, to.reference))
             }
-
 
             this.writeMemberVariable(codeWriter, to, options)
             codeWriter.writeLine()
@@ -698,8 +738,136 @@ class JavaCodeGenerator {
 
         if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name === 'Entity') {
             codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
-            codeWriter.writeLine('@Entity()')
+            if (options.tablePrefix) {
+                codeWriter.writeLine(`@Entity("${options.tablePrefix}_${snakeCase(elem.name)}")`)
+            } else {
+                codeWriter.writeLine('@Entity()')
+            }
         }
+        terms.push('export')
+        // Modifiers
+        var _modifiers = this.getModifiers(elem, false)
+        if (_modifiers.includes('abstract') !== true && elem.operations.some(function (op) { return op.isAbstract === true })) {
+            _modifiers.push('abstract')
+        }
+        if (_modifiers.length > 0) {
+            terms.push(_modifiers.join(' '))
+        }
+
+        // Class
+        terms.push('class')
+        terms.push(elem.name)
+
+        // Extends
+        var _extends = this.getSuperClasses(elem)
+        if (_extends.length > 0) {
+            terms.push('extends ' + _extends[0].name)
+        }
+
+        // Implements
+        var _implements = this.getSuperInterfaces(elem)
+        if (_implements.length > 0) {
+            terms.push('implements ' + _implements.map(function (e) { return e.name }).join(', '))
+        }
+        codeWriter.writeLine(terms.join(' ') + ' {')
+        codeWriter.writeLine()
+        codeWriter.indent()
+
+        // Constructor
+        // this.writeConstructor(codeWriter, elem, options)
+        // codeWriter.writeLine()
+
+        // Member Variables
+        // (from attributes)
+        for (i = 0, len = elem.attributes.length; i < len; i++) {
+            this.writeEntityColumn(codeWriter, elem.attributes[i], options)
+            codeWriter.writeLine()
+        }
+
+        // (from associations)
+        var associations = app.repository.getRelationshipsOf(elem, function (rel) {
+            return (rel instanceof type.UMLAssociation)
+        })
+        for (i = 0, len = associations.length; i < len; i++) {
+            var asso = associations[i]
+            if (asso.end1.reference === elem && asso.end2.navigable === true) {
+                this.writeEntityRelation(codeWriter, asso.end1, asso.end2, options)
+            }
+            if (asso.end2.reference === elem && asso.end1.navigable === true) {
+                this.writeEntityRelation(codeWriter, asso.end2, asso.end1, options)
+            }
+
+        }
+
+        // Methods
+        for (i = 0, len = elem.operations.length; i < len; i++) {
+            this.writeMethod(codeWriter, elem.operations[i], options, false, false)
+            codeWriter.writeLine()
+        }
+
+        // Extends methods
+        if (_extends.length > 0) {
+            for (i = 0, len = _extends[0].operations.length; i < len; i++) {
+                _modifiers = this.getModifiers(_extends[0].operations[i])
+                if (_modifiers.includes('abstract') === true) {
+                    this.writeMethod(codeWriter, _extends[0].operations[i], options, false, false)
+                    codeWriter.writeLine()
+                }
+            }
+        }
+
+        // Interface methods
+        for (var j = 0; j < _implements.length; j++) {
+            for (i = 0, len = _implements[j].operations.length; i < len; i++) {
+                this.writeMethod(codeWriter, _implements[j].operations[i], options, false, false)
+                codeWriter.writeLine()
+            }
+        }
+
+        // Inner Definitions
+        for (i = 0, len = elem.ownedElements.length; i < len; i++) {
+            var def = elem.ownedElements[i]
+            if (def instanceof type.UMLClass) {
+                if (def.stereotype === 'annotationType') {
+                    this.writeAnnotationType(codeWriter, def, options)
+                } else {
+                    this.writeClass(codeWriter, def, options)
+                }
+                codeWriter.writeLine()
+            } else if (def instanceof type.UMLInterface) {
+                this.writeInterface(codeWriter, def, options)
+                codeWriter.writeLine()
+            } else if (def instanceof type.UMLEnumeration) {
+                this.writeEnum(codeWriter, def, options)
+                codeWriter.writeLine()
+            }
+        }
+
+        codeWriter.outdent()
+        codeWriter.writeLine('}')
+    }
+
+    /**
+     * Write Class
+     * @param {StringWriter} codeWriter
+     * @param {type.Model} elem
+     * @param {Object} options
+     */
+    writeModule(codeWriter, elem, options) {
+        var i, len
+        var terms = []
+
+        // Doc
+        var doc = elem.documentation.trim()
+        if (app.project.getProject().author && app.project.getProject().author.length > 0) {
+            doc += '\n@author ' + app.project.getProject().author
+        }
+        this.writeDoc(codeWriter, doc, options)
+
+        codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
+        // codeWriter.writeLine(`@${}()`)
+
+
         terms.push('export')
         // Modifiers
         var _modifiers = this.getModifiers(elem, false)

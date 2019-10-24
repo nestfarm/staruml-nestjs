@@ -5,12 +5,20 @@
       "submenu": [
         {
           "label": "NestJS",
-          "id": "tool.nestjs",
+          "id": "tools.nestjs",
           "submenu": [
             {
               "label": "Generate Code...",
-              "id": "tool.nest.generate",
+              "id": "tools.nest.generate",
               "command": "nest:generate"
+            },
+            {
+              "type": "separator"
+            },
+            {
+              "label": "Configure...",
+              "id": "tools.nest.configure",
+              "command": "nest:configure"
             }
           ]
         }

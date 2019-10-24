@@ -91,3 +91,31 @@ class CodeWriter {
 }
 
 exports.CodeWriter = CodeWriter
+exports.keywords = {
+  break: true,
+  case: true,
+  catch: true,
+  continue: true,
+  debugger: true,
+  default: true,
+  delete: true,
+  do: true,
+  else: true,
+  finally: true,
+  for: true,
+  function: true,
+  if: true,
+  in: true,
+  instanceof: true,
+  new: true,
+  return: true,
+  switch: true,
+  this: true,
+  throw: true,
+  try: true,
+  typeof: true,
+  var: true,
+  void: true,
+  while: true,
+  with: true,
+}

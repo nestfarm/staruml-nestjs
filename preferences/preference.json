@@ -23,6 +23,12 @@
       "description": "Number of spaces for indentation.",
       "type": "number",
       "default": 4
+    },
+    "nest.gen.tablePrefix": {
+      "text": "Table Prefix",
+      "description": "Table prefix for the generated entities.",
+      "type": "string",
+      "default": null
     }
   }
 }

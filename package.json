@@ -15,6 +15,9 @@
     "staruml": ">=3.0.0"
   },
   "dependencies": {
-    "lodash.kebabcase": "^4.1.1"
+    "lodash.camelcase": "^4.3.0",
+    "lodash.kebabcase": "^4.1.1",
+    "lodash.snakecase": "^4.1.1",
+    "pluralize": "^8.0.0"
   }
 }

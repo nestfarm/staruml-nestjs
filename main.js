@@ -14,7 +14,8 @@ function getGenOptions() {
   return {
     javaDoc: app.preferences.get('nest.gen.javaDoc'),
     useTab: app.preferences.get('nest.gen.useTab'),
-    indentSpaces: app.preferences.get('nest.gen.indentSpaces')
+    indentSpaces: app.preferences.get('nest.gen.indentSpaces'),
+    tablePrefix: app.preferences.get('nest.gen.tablePrefix')
   }
 }
 
@@ -40,8 +41,13 @@ function getPath(path) {
   return path
 }
 
+function _handleConfigure() {
+  app.commands.execute('application:preferences', 'nest')
+}
+
 function init() {
   app.commands.register('nest:generate', handleGenerate)
+  app.commands.register('nest:configure', _handleConfigure)
 }
 
 exports.init = init

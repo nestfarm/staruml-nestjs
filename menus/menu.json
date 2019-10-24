@@ -13,6 +13,11 @@
               "command": "nest:generate"
             },
             {
+              "label": "Generate Crud...",
+              "id": "tools.nest.generate.crud",
+              "command": "nest:generate:crud"
+            },
+            {
               "type": "separator"
             },
             {

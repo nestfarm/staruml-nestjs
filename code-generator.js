@@ -28,6 +28,7 @@ const kebabCase = require('lodash.kebabcase');
 const camelCase = require('lodash.camelcase');
 const snakeCase = require('lodash.snakecase');
 const pluralize = require('pluralize')
+const capitalize = require('lodash.capitalize')
 
 /**
  * Java Code Generator
@@ -46,6 +47,8 @@ class JavaCodeGenerator {
 
         /** @member {string} */
         this.basePath = basePath
+        this.entities = []
+        this.services = []
     }
 
     /**
@@ -86,11 +89,14 @@ class JavaCodeGenerator {
                     return this.generate(child, fullPath, options)
                 })
             }
-            // if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name === 'Module') {
-            //     codeWriter = new codegen.CodeWriter(this.getIndentString(options))
-            //     this.writeModule(codeWriter, elem, options)
-            //     fs.writeFileSync(fullPath, codeWriter.getData())
-            // }
+            if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name === 'Module') {
+                codeWriter = new codegen.CodeWriter(this.getIndentString(options))
+                this.writeModule(codeWriter, elem, options)
+                let modPath = fullPath + '/' + this.getFileName(elem) + '.ts'
+                fs.writeFileSync(modPath, codeWriter.getData())
+                this.entities = []
+                this.services = []
+            }
         } else if (elem instanceof type.UMLClass) {
             // Decorator
             if (elem.stereotype === 'annotationType') {
@@ -106,11 +112,22 @@ class JavaCodeGenerator {
                 && elem.stereotype.name === 'Entity')
                 || elem.stereotype === 'fields') {
 
+                if (elem.stereotype.name === 'Entity') {
+                    this.entities.push(elem)
+                }
                 fullPath = basePath + '/' + this.getFileName(elem) + '.ts'
                 codeWriter = new codegen.CodeWriter(this.getIndentString(options))
                 this.writeEntity(codeWriter, elem, options)
                 fs.writeFileSync(fullPath, codeWriter.getData())
                 // Class
+            } else if (elem.stereotype instanceof type.UMLClass
+                && elem.stereotype.name === 'Injectable') {
+                this.services.push(elem)
+
+                fullPath = basePath + '/' + this.getFileName(elem) + '.ts'
+                codeWriter = new codegen.CodeWriter(this.getIndentString(options))
+                this.writeCrudService(codeWriter, elem, options)
+                fs.writeFileSync(fullPath, codeWriter.getData())
             }
             // Interface
         } else if (elem instanceof type.UMLInterface) {
@@ -303,8 +320,14 @@ class JavaCodeGenerator {
 
     getFileName(elem) {
         let fileName = ''
-        if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name === 'Entity') {
-            fileName = kebabCase(elem.name) + '.entity'
+        if (elem.stereotype instanceof type.UMLClass) {
+            if (elem.stereotype.name === 'Entity') {
+                fileName = kebabCase(elem.name) + '.entity'
+            } else if (elem.stereotype.name === 'Module') {
+                fileName = kebabCase(elem.name) + '.module'
+            } else if (elem.stereotype.name === 'Injectable') {
+                fileName = kebabCase(elem.name.replace('Service', '')) + '.service'
+            }
         } else if (elem.stereotype === 'fields') {
             fileName = kebabCase(elem.name.slice(0, -6)) + '.fields'
         }
@@ -865,22 +888,43 @@ class JavaCodeGenerator {
         this.writeDoc(codeWriter, doc, options)
 
         codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
-        // codeWriter.writeLine(`@${}()`)
 
+        if (this.entities.length > 0 || this.services.length > 0) {
+            codeWriter.import('TypeOrmModule', '@nestjs/typeorm')
+            this.entities.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
+            this.services.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
+
+            codeWriter.writeLine('@Module({')
+            codeWriter.indent()
+            if (this.entities.length > 0) {
+                codeWriter.writeLine('imports: [')
+                codeWriter.indent()
+                codeWriter.writeLine('TypeOrmModule.forFeature([')
+                codeWriter.indent()
+                this.entities.forEach(e => codeWriter.writeLine(e.name + ','))
+                codeWriter.outdent()
+                codeWriter.writeLine(']),')
+                codeWriter.outdent()
+                codeWriter.writeLine('],')
+            }
+            if (this.services.length > 0) {
+                codeWriter.writeLine('providers: [')
+                codeWriter.indent()
+                this.services.forEach(e => codeWriter.writeLine(e.name + ','))
+                codeWriter.outdent()
+                codeWriter.writeLine('],')
+            }
+            codeWriter.outdent()
+            codeWriter.writeLine('})')
+        } else {
+            codeWriter.writeLine('@Module()')
+        }
 
         terms.push('export')
-        // Modifiers
-        var _modifiers = this.getModifiers(elem, false)
-        if (_modifiers.includes('abstract') !== true && elem.operations.some(function (op) { return op.isAbstract === true })) {
-            _modifiers.push('abstract')
-        }
-        if (_modifiers.length > 0) {
-            terms.push(_modifiers.join(' '))
-        }
 
         // Class
         terms.push('class')
-        terms.push(elem.name)
+        terms.push(capitalize(camelCase(elem.name)) + 'Module')
 
         // Extends
         var _extends = this.getSuperClasses(elem)
@@ -895,78 +939,55 @@ class JavaCodeGenerator {
         }
         codeWriter.writeLine(terms.join(' ') + ' {')
         codeWriter.writeLine()
-        codeWriter.indent()
+        codeWriter.writeLine('}')
+    }
 
-        // Constructor
-        // this.writeConstructor(codeWriter, elem, options)
-        // codeWriter.writeLine()
+    /**
+     * Write Class
+     * @param {StringWriter} codeWriter
+     * @param {type.Model} elem
+     * @param {Object} options
+     */
+    writeCrudService(codeWriter, elem, options) {
+        var i, len
+        var terms = []
 
-        // Member Variables
-        // (from attributes)
-        for (i = 0, len = elem.attributes.length; i < len; i++) {
-            this.writeEntityColumn(codeWriter, elem.attributes[i], options)
-            codeWriter.writeLine()
+        // Doc
+        var doc = elem.documentation.trim()
+        if (app.project.getProject().author && app.project.getProject().author.length > 0) {
+            doc += '\n@author ' + app.project.getProject().author
         }
+        this.writeDoc(codeWriter, doc, options)
 
-        // (from associations)
-        var associations = app.repository.getRelationshipsOf(elem, function (rel) {
-            return (rel instanceof type.UMLAssociation)
+        var generalizations = app.repository.getRelationshipsOf(elem, function (rel) {
+            return (rel instanceof type.UMLGeneralization && rel.source === elem)
         })
-        for (i = 0, len = associations.length; i < len; i++) {
-            var asso = associations[i]
-            if (asso.end1.reference === elem && asso.end2.navigable === true) {
-                this.writeEntityRelation(codeWriter, asso.end1, asso.end2, options)
-            }
-            if (asso.end2.reference === elem && asso.end1.navigable === true) {
-                this.writeEntityRelation(codeWriter, asso.end2, asso.end1, options)
-            }
+        var entity = generalizations[0].stereotype
+        codeWriter.import(entity.name, this.getModulePath(elem, entity));
+        codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
+        codeWriter.import('InjectRepository', '@nestjs/typeorm')
+        codeWriter.import('TypeOrmCrudService', '@nestjsx/crud-typeorm')
 
+        codeWriter.writeLine('@Injectable()')
+
+        terms.push('export')
+
+        // Class
+        terms.push('class')
+        terms.push(elem.name)
+
+        // Extends
+        if (generalizations.length > 0) {
+            terms.push(`extends ${generalizations[0].target.name}<${entity.name}>`)
         }
 
-        // Methods
-        for (i = 0, len = elem.operations.length; i < len; i++) {
-            this.writeMethod(codeWriter, elem.operations[i], options, false, false)
-            codeWriter.writeLine()
-        }
-
-        // Extends methods
-        if (_extends.length > 0) {
-            for (i = 0, len = _extends[0].operations.length; i < len; i++) {
-                _modifiers = this.getModifiers(_extends[0].operations[i])
-                if (_modifiers.includes('abstract') === true) {
-                    this.writeMethod(codeWriter, _extends[0].operations[i], options, false, false)
-                    codeWriter.writeLine()
-                }
-            }
-        }
-
-        // Interface methods
-        for (var j = 0; j < _implements.length; j++) {
-            for (i = 0, len = _implements[j].operations.length; i < len; i++) {
-                this.writeMethod(codeWriter, _implements[j].operations[i], options, false, false)
-                codeWriter.writeLine()
-            }
-        }
-
-        // Inner Definitions
-        for (i = 0, len = elem.ownedElements.length; i < len; i++) {
-            var def = elem.ownedElements[i]
-            if (def instanceof type.UMLClass) {
-                if (def.stereotype === 'annotationType') {
-                    this.writeAnnotationType(codeWriter, def, options)
-                } else {
-                    this.writeClass(codeWriter, def, options)
-                }
-                codeWriter.writeLine()
-            } else if (def instanceof type.UMLInterface) {
-                this.writeInterface(codeWriter, def, options)
-                codeWriter.writeLine()
-            } else if (def instanceof type.UMLEnumeration) {
-                this.writeEnum(codeWriter, def, options)
-                codeWriter.writeLine()
-            }
-        }
-
+        codeWriter.writeLine(terms.join(' ') + ' {')
+        codeWriter.indent()
+        codeWriter.writeLine(`constructor(@InjectRepository(${entity.name}) repo) {`)
+        codeWriter.indent()
+        codeWriter.writeLine('super(repo);')
+        codeWriter.outdent()
+        codeWriter.writeLine('}')
         codeWriter.outdent()
         codeWriter.writeLine('}')
     }

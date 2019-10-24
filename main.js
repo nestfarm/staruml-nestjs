@@ -1,4 +1,5 @@
 const codeGenerator = require('./code-generator')
+const crudGenerator = require('./crud-generator')
 
 function handleGenerate(base, path, options) {
   options = options || getGenOptions()
@@ -6,6 +7,15 @@ function handleGenerate(base, path, options) {
     if (base) {
       path = getPath(path)
       codeGenerator.generate(base, path, options)
+    }
+  });
+}
+
+function handleGenerateCrud(base, path, options) {
+  options = options || getGenOptions()
+  getBase(base).then(base => {
+    if (base) {
+      crudGenerator.generate(base, path, options)
     }
   });
 }
@@ -47,6 +57,7 @@ function _handleConfigure() {
 
 function init() {
   app.commands.register('nest:generate', handleGenerate)
+  app.commands.register('nest:generate:crud', handleGenerateCrud)
   app.commands.register('nest:configure', _handleConfigure)
 }
 

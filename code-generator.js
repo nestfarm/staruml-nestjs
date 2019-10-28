@@ -33,7 +33,7 @@ const capitalize = require('lodash.capitalize')
 /**
  * Java Code Generator
  */
-class JavaCodeGenerator {
+class NestCodeGenerator {
 
     /**
      * @constructor
@@ -49,6 +49,7 @@ class JavaCodeGenerator {
         this.basePath = basePath
         this.entities = []
         this.services = []
+        this.controllers = []
     }
 
     /**
@@ -96,6 +97,7 @@ class JavaCodeGenerator {
                 fs.writeFileSync(modPath, codeWriter.getData())
                 this.entities = []
                 this.services = []
+                this.controllers = []
             }
         } else if (elem instanceof type.UMLClass) {
             // Decorator
@@ -127,6 +129,14 @@ class JavaCodeGenerator {
                 fullPath = basePath + '/' + this.getFileName(elem) + '.ts'
                 codeWriter = new codegen.CodeWriter(this.getIndentString(options))
                 this.writeCrudService(codeWriter, elem, options)
+                fs.writeFileSync(fullPath, codeWriter.getData())
+            } else if (elem.stereotype instanceof type.UMLClass
+                && elem.stereotype.name === 'Controller') {
+                this.controllers.push(elem)
+
+                fullPath = basePath + '/' + this.getFileName(elem) + '.ts'
+                codeWriter = new codegen.CodeWriter(this.getIndentString(options))
+                this.writeCrudController(codeWriter, elem, options)
                 fs.writeFileSync(fullPath, codeWriter.getData())
             }
             // Interface
@@ -311,10 +321,20 @@ class JavaCodeGenerator {
             return '.'
         }
 
+        var parentPath = this.getPackagePath(elem._parent)
         if (elem instanceof type.UMLPackage) {
-            return this.getPackagePath(elem._parent) + '/' + elem.name
+            if (parentPath === './node_modules' && {
+                'nestjs/common': true,
+                'nestjs/typeorm': true,
+                'nestjsx/crud': true,
+                'nestjsx/crud-typeorm': true,
+            }[elem.name]) {
+                return parentPath + '/@' + elem.name
+            } else {
+                return parentPath + '/' + elem.name
+            }
         } else {
-            return this.getPackagePath(elem._parent)
+            return parentPath
         }
     }
 
@@ -327,6 +347,8 @@ class JavaCodeGenerator {
                 fileName = kebabCase(elem.name) + '.module'
             } else if (elem.stereotype.name === 'Injectable') {
                 fileName = kebabCase(elem.name.replace('Service', '')) + '.service'
+            } else if (elem.stereotype.name === 'Controller') {
+                fileName = kebabCase(elem.name.replace('Controller', '')) + '.controller'
             }
         } else if (elem.stereotype === 'fields') {
             fileName = kebabCase(elem.name.slice(0, -6)) + '.fields'
@@ -409,6 +431,13 @@ class JavaCodeGenerator {
         }
     }
 
+    useTree(asso) {
+        return asso instanceof type.UMLAssociation
+            && asso.end1.reference === asso.end2.reference
+            && asso.stereotype instanceof type.UMLClass
+            && asso.stereotype.name === 'Tree'
+    }
+
     /**
      * Write Member Variable
      * @param {StringWriter} codeWriter
@@ -417,6 +446,14 @@ class JavaCodeGenerator {
      */
     writeMemberVariable(codeWriter, elem, options) {
         var name = this.getName(elem)
+        var useTree = this.useTree(elem._parent)
+        if (useTree && !elem.name) {
+            if (this.hasMultiple(elem)) {
+                name = 'children'
+            } else {
+                name = 'parent'
+            }
+        }
         if (name.length > 0) {
             var terms = []
             // doc
@@ -464,20 +501,17 @@ class JavaCodeGenerator {
         }
 
         codeWriter.import(column, pkg)
-        this.writeEntityColumnDecorator(codeWriter, elem, column);
-        this.writeMemberVariable(codeWriter, elem, options)
-    }
-
-    writeEntityColumnDecorator(codeWriter, elem, column) {
-        let options = this.getEntityColumnOptions(elem)
-        if (Object.keys(options).length > 0) {
-            codeWriter.writeLine(`@${column}({ ${options.map(o => o.key + ': ' + o.val).join(', ')} })`)
+        let colOptions = this.getEntityColumnOptions(elem)
+        if (Object.keys(colOptions).length > 0) {
+            codeWriter.writeLine(`@${column}({ ${colOptions.map(o => o.key + ': ' + o.val).join(', ')} })`)
         } else if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
             codeWriter.import(elem.type.name, this.getModulePath(elem, elem.type))
             codeWriter.writeLine(`@${column}(type => ${elem.type.name})`)
         } else {
             codeWriter.writeLine(`@${column}()`)
         }
+
+        this.writeMemberVariable(codeWriter, elem, options)
     }
 
     /**
@@ -486,39 +520,60 @@ class JavaCodeGenerator {
      * @param {type.Model} elem
      * @param {Object} options
      */
-    writeEntityRelation(codeWriter, from, to, options) {
+    writeEntityRelation(codeWriter, asso, options, { from, to, element: elem }) {
         var column
+        var useTree = this.useTree(asso)
 
         if (to) {
-            if (this.hasMultiple(from)) {
-                if (this.hasMultiple(to)) {
-                    column = 'ManyToMany'
+            if (useTree) {
+                if (this.hasMultiple(from)) {
+                    column = 'TreeParent'
                 } else {
-                    column = 'ManyToOne'
+                    column = 'TreeChildren'
                 }
             } else {
-                if (this.hasMultiple(to)) {
-                    column = 'OneToMany'
+                if (this.hasMultiple(from)) {
+                    if (this.hasMultiple(to)) {
+                        column = 'ManyToMany'
+                    } else {
+                        column = 'ManyToOne'
+                    }
                 } else {
-                    column = 'OneToOne'
+                    if (this.hasMultiple(to)) {
+                        column = 'OneToMany'
+                    } else {
+                        column = 'OneToOne'
+                    }
                 }
             }
+
+
+
             codeWriter.import(column, 'typeorm')
-            let fromEntity = this.getName(from)
-            let toField = this.getName(to.reference)
-            toField = codegen.keywords[toField] ? '_' + toField : toField
-
-
-            if (from.navigable) {
-                codeWriter.writeLine(`@${column}(type => ${to.reference.name}, ${toField} => ${toField}.${fromEntity})`)
+            if (useTree) {
+                codeWriter.writeLine(`@${column}()`)
             } else {
-                codeWriter.writeLine(`@${column}(type => ${to.reference.name})`)
-            }
+                let fromEntity = this.getName(from)
+                let toField = this.getName(to.reference)
+                toField = codegen.keywords[toField] ? '_' + toField : toField
 
+                if (from.navigable) {
+                    codeWriter.writeLine(`@${column}(type => ${to.reference.name}, ${toField} => ${toField}.${fromEntity})`)
+                } else {
+                    codeWriter.writeLine(`@${column}(type => ${to.reference.name})`)
+                }
 
-            if (from.reference !== to.reference) {
-                codeWriter.import(to.reference.name,
-                    this.getModulePath(from.reference, to.reference))
+                var joinColumn = (column === 'ManyToMany')
+                    ? ((asso.end2.reference === elem || !from.navigable) ? 'JoinTable' : '')
+                    : ((asso.end2.reference === elem) ? 'JoinColumn' : '')
+                if (joinColumn) {
+                    codeWriter.import(joinColumn, 'typeorm')
+                    codeWriter.writeLine(`@${joinColumn}()`)
+                }
+                if (from.reference !== to.reference) {
+                    codeWriter.import(to.reference.name,
+                        this.getModulePath(from.reference, to.reference))
+                }
             }
 
             this.writeMemberVariable(codeWriter, to, options)
@@ -762,11 +817,22 @@ class JavaCodeGenerator {
         if (elem.stereotype instanceof type.UMLClass && elem.stereotype.name === 'Entity') {
             codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
             if (options.tablePrefix) {
-                codeWriter.writeLine(`@Entity("${options.tablePrefix}_${snakeCase(elem.name)}")`)
+                codeWriter.writeLine(`@Entity('${options.tablePrefix}_${snakeCase(elem.name)}')`)
             } else {
                 codeWriter.writeLine('@Entity()')
             }
         }
+
+        var associations = app.repository.getRelationshipsOf(elem, (rel) =>
+            rel instanceof type.UMLAssociation && this.useTree(rel)
+        )
+        if (associations.length > 0) {
+            var asso = associations[0]
+            var treeType = asso.name ? asso.name : 'materialized-path'
+            codeWriter.import(asso.stereotype.name, this.getModulePath(elem, asso.stereotype))
+            codeWriter.writeLine(`@${asso.stereotype.name}('${treeType}')`)
+        }
+
         terms.push('export')
         // Modifiers
         var _modifiers = this.getModifiers(elem, false)
@@ -814,12 +880,19 @@ class JavaCodeGenerator {
         for (i = 0, len = associations.length; i < len; i++) {
             var asso = associations[i]
             if (asso.end1.reference === elem && asso.end2.navigable === true) {
-                this.writeEntityRelation(codeWriter, asso.end1, asso.end2, options)
+                this.writeEntityRelation(codeWriter, asso, options, {
+                    element: elem,
+                    from: asso.end1,
+                    to: asso.end2,
+                })
             }
             if (asso.end2.reference === elem && asso.end1.navigable === true) {
-                this.writeEntityRelation(codeWriter, asso.end2, asso.end1, options)
+                this.writeEntityRelation(codeWriter, asso, options, {
+                    element: elem,
+                    from: asso.end2,
+                    to: asso.end1
+                })
             }
-
         }
 
         // Methods
@@ -889,36 +962,40 @@ class JavaCodeGenerator {
 
         codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
 
-        if (this.entities.length > 0 || this.services.length > 0) {
-            codeWriter.import('TypeOrmModule', '@nestjs/typeorm')
-            this.entities.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
-            this.services.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
+        codeWriter.import('TypeOrmModule', '@nestjs/typeorm')
+        this.entities.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
+        this.services.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
+        this.controllers.forEach(e => codeWriter.import(e.name, this.getModulePath(elem, e)))
 
-            codeWriter.writeLine('@Module({')
+        codeWriter.writeLine('@Module({')
+        codeWriter.indent()
+        if (this.entities.length > 0) {
+            codeWriter.writeLine('imports: [')
             codeWriter.indent()
-            if (this.entities.length > 0) {
-                codeWriter.writeLine('imports: [')
-                codeWriter.indent()
-                codeWriter.writeLine('TypeOrmModule.forFeature([')
-                codeWriter.indent()
-                this.entities.forEach(e => codeWriter.writeLine(e.name + ','))
-                codeWriter.outdent()
-                codeWriter.writeLine(']),')
-                codeWriter.outdent()
-                codeWriter.writeLine('],')
-            }
-            if (this.services.length > 0) {
-                codeWriter.writeLine('providers: [')
-                codeWriter.indent()
-                this.services.forEach(e => codeWriter.writeLine(e.name + ','))
-                codeWriter.outdent()
-                codeWriter.writeLine('],')
-            }
+            codeWriter.writeLine('TypeOrmModule.forFeature([')
+            codeWriter.indent()
+            this.entities.forEach(e => codeWriter.writeLine(e.name + ','))
             codeWriter.outdent()
-            codeWriter.writeLine('})')
-        } else {
-            codeWriter.writeLine('@Module()')
+            codeWriter.writeLine(']),')
+            codeWriter.outdent()
+            codeWriter.writeLine('],')
         }
+        if (this.services.length > 0) {
+            codeWriter.writeLine('providers: [')
+            codeWriter.indent()
+            this.services.forEach(e => codeWriter.writeLine(e.name + ','))
+            codeWriter.outdent()
+            codeWriter.writeLine('],')
+        }
+        if (this.controllers.length > 0) {
+            codeWriter.writeLine('controllers: [')
+            codeWriter.indent()
+            this.controllers.forEach(e => codeWriter.writeLine(e.name + ','))
+            codeWriter.outdent()
+            codeWriter.writeLine('],')
+        }
+        codeWriter.outdent()
+        codeWriter.writeLine('})')
 
         terms.push('export')
 
@@ -939,6 +1016,73 @@ class JavaCodeGenerator {
         }
         codeWriter.writeLine(terms.join(' ') + ' {')
         codeWriter.writeLine()
+        codeWriter.writeLine('}')
+    }
+
+    /**
+     * Write Class
+     * @param {StringWriter} codeWriter
+     * @param {type.Model} elem
+     * @param {Object} options
+     */
+    writeCrudController(codeWriter, elem, options) {
+        var i, len
+        var terms = []
+
+        // Doc
+        var doc = elem.documentation.trim()
+        if (app.project.getProject().author && app.project.getProject().author.length > 0) {
+            doc += '\n@author ' + app.project.getProject().author
+        }
+        this.writeDoc(codeWriter, doc, options)
+
+        codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
+        codeWriter.import('Crud', '@nestjsx/crud')
+
+
+        var associations = app.repository.getRelationshipsOf(elem, function (rel) {
+            return (rel instanceof type.UMLAssociation)
+        })
+
+        let svcs = associations.map(asso => asso.end2.reference)
+        svcs.forEach(svc => {
+            codeWriter.import(svc.name, this.getModulePath(elem, svc));
+        })
+
+        let entities = svcs.map(svc => {
+            var generalizations = app.repository.getRelationshipsOf(svc, function (rel) {
+                return (rel instanceof type.UMLGeneralization && rel.source === svc)
+            })
+            var entity = generalizations[0].stereotype
+            return entity
+        })
+        entities.forEach(entity => {
+            codeWriter.import(entity.name, this.getModulePath(elem, entity));
+        })
+
+
+        codeWriter.writeLine('@Crud({')
+        codeWriter.indent()
+        codeWriter.writeLine('model: {')
+        codeWriter.indent()
+        codeWriter.writeLine(`type: ${entities[0].name},`)
+        codeWriter.outdent()
+        codeWriter.writeLine('},')
+        codeWriter.outdent()
+        codeWriter.writeLine('})')
+
+        codeWriter.writeLine(`@Controller('${pluralize(entities[0].name)}')`)
+
+        terms.push('export')
+        terms.push('class')
+        terms.push(elem.name)
+
+        codeWriter.writeLine(terms.join(' ') + ' {')
+        codeWriter.indent()
+        codeWriter.writeLine(`constructor(${svcs
+            .map(svc => `public ${camelCase(svc.name)}: ${svc.name}`)
+            .join(', ')}) {}`)
+        codeWriter.outdent()
         codeWriter.writeLine('}')
     }
 
@@ -1197,8 +1341,8 @@ class JavaCodeGenerator {
  * @param {Object} options
  */
 function generate(baseModel, basePath, options) {
-    var javaCodeGenerator = new JavaCodeGenerator(baseModel, basePath)
-    javaCodeGenerator.generate(baseModel, basePath, options)
+    var nestCodeGenerator = new NestCodeGenerator(baseModel, basePath)
+    nestCodeGenerator.generate(baseModel, basePath, options)
 }
 
 exports.generate = generate

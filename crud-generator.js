@@ -21,19 +21,10 @@
  *
  */
 
-const fs = require('fs')
-const path = require('path')
-const codegen = require('./codegen-utils')
-const kebabCase = require('lodash.kebabcase');
-const camelCase = require('lodash.camelcase');
-const snakeCase = require('lodash.snakecase');
-const pluralize = require('pluralize')
-const capitalize = require('lodash.capitalize')
-
 /**
  * Java Code Generator
  */
-class JavaCodeGenerator {
+class NestCodeGenerator {
 
     /**
      * @constructor
@@ -48,25 +39,6 @@ class JavaCodeGenerator {
         /** @member {string} */
         this.basePath = basePath
         this.entities = []
-    }
-
-    /**
-     * Return Indent String based on options
-     * @param {Object} options
-     * @return {string}
-     */
-    getIndentString(options) {
-        if (options.useTab) {
-            return '\t'
-        } else {
-            var i
-            var len
-            var indent = []
-            for (i = 0, len = options.indentSpaces; i < len; i++) {
-                indent.push(' ')
-            }
-            return indent.join('')
-        }
     }
 
     /**
@@ -176,8 +148,8 @@ class JavaCodeGenerator {
  * @param {Object} options
  */
 function generate(baseModel, basePath, options) {
-    var javaCodeGenerator = new JavaCodeGenerator(baseModel, basePath)
-    javaCodeGenerator.generate(baseModel, basePath, options)
+    var nestCodeGenerator = new NestCodeGenerator(baseModel, basePath)
+    nestCodeGenerator.generate(baseModel, basePath, options)
 }
 
 exports.generate = generate

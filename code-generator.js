@@ -121,6 +121,18 @@ class NestCodeGenerator {
                 codeWriter = new codegen.CodeWriter(this.getIndentString(options))
                 this.writeEntity(codeWriter, elem, options)
                 fs.writeFileSync(fullPath, codeWriter.getData())
+
+                // Model
+                basePath = path.join(basePath, '../models')
+                if (!fs.existsSync(basePath)) {
+                    fs.mkdirSync(basePath)
+                }
+                elem.isModel = true; // begin use entity as model
+                fullPath = path.join(basePath, this.getFileName(elem) + '.ts')
+                codeWriter = new codegen.CodeWriter(this.getIndentString(options))
+                this.writeModel(codeWriter, elem, options)
+                fs.writeFileSync(fullPath, codeWriter.getData())
+                delete elem.isModel // finish use entity as model
                 // Class
             } else if (elem.stereotype instanceof type.UMLClass
                 && elem.stereotype.name === 'Injectable') {
@@ -266,11 +278,11 @@ class NestCodeGenerator {
         // type name
         if (elem instanceof type.UMLAssociationEnd) {
             if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
-                _type = elem.reference.name
+                _type = elem.reference.name + (elem.reference.isModel ? 'Model' : '')
             }
         } else {
             if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
-                _type = elem.type.name
+                _type = elem.type.name + (elem.type.isModel ? 'Model' : '')
             } else if ((typeof elem.type === 'string') && elem.type.length > 0) {
                 _type = elem.type
             }
@@ -316,32 +328,12 @@ class NestCodeGenerator {
         return options;
     }
 
-    getPackagePath(elem) {
-        if (!elem || elem instanceof type.UMLModel) {
-            return '.'
-        }
-
-        var parentPath = this.getPackagePath(elem._parent)
-        if (elem instanceof type.UMLPackage) {
-            if (parentPath === './node_modules' && {
-                'nestjs/common': true,
-                'nestjs/typeorm': true,
-                'nestjsx/crud': true,
-                'nestjsx/crud-typeorm': true,
-            }[elem.name]) {
-                return parentPath + '/@' + elem.name
-            } else {
-                return parentPath + '/' + elem.name
-            }
-        } else {
-            return parentPath
-        }
-    }
-
     getFileName(elem) {
         let fileName = ''
         if (elem.stereotype instanceof type.UMLClass) {
-            if (elem.stereotype.name === 'Entity') {
+            if (elem.isModel) {
+                fileName = kebabCase(elem.name) + '.model'
+            } else if (elem.stereotype.name === 'Entity') {
                 fileName = kebabCase(elem.name) + '.entity'
             } else if (elem.stereotype.name === 'Module') {
                 fileName = kebabCase(elem.name) + '.module'
@@ -354,6 +346,20 @@ class NestCodeGenerator {
             fileName = kebabCase(elem.name.slice(0, -6)) + '.fields'
         }
         return fileName
+    }
+
+    getModuleName(elem) {
+        if (!elem || elem instanceof type.UMLModel) {
+            return ''
+        }
+
+        if (elem instanceof type.UMLPackage
+            && elem.stereotype instanceof type.UMLClass
+            && elem.stereotype.name === 'Module') {
+            return elem.name
+        } else {
+            return this.getModuleName(elem._parent)
+        }
     }
 
     getModulePath(from, to) {
@@ -372,6 +378,32 @@ class NestCodeGenerator {
                 basePath = '.'
             }
             return basePath + '/' + this.getFileName(to)
+        }
+    }
+
+    getPackagePath(elem, child) {
+        if (!elem || elem instanceof type.UMLModel) {
+            return '.'
+        }
+
+        var parentPath = this.getPackagePath(elem._parent, elem)
+        if (elem instanceof type.UMLPackage) {
+            if (parentPath === './node_modules' && {
+                'nestjs/common': true,
+                'nestjs/typeorm': true,
+                'nestjsx/crud': true,
+                'nestjsx/crud-typeorm': true,
+            }[elem.name]) {
+                return parentPath + '/@' + elem.name
+            } else {
+                if (child && child.isModel) {
+                    return parentPath + '/models'
+                } else {
+                    return parentPath + '/' + elem.name
+                }
+            }
+        } else {
+            return parentPath
         }
     }
 
@@ -514,6 +546,25 @@ class NestCodeGenerator {
         this.writeMemberVariable(codeWriter, elem, options)
     }
 
+    writeModelRelation(codeWriter, { from, to }, options) {
+        from.reference.isModel = true
+        to.reference.isModel = true
+        if (from.reference !== to.reference) {
+            codeWriter.import(to.reference.name + 'Model',
+                this.getModulePath(from.reference, to.reference))
+        }
+
+        if (to.reference.name.endsWith('?')) {
+            codeWriter.writeLine('@ApiModelPropertyOptional()')
+        } else {
+            codeWriter.writeLine('@ApiModelProperty()')
+        }
+        this.writeMemberVariable(codeWriter, to, options)
+        codeWriter.writeLine()
+        delete from.reference.isModel
+        delete to.reference.isModel
+    }
+
     /**
      * Write Member Variable
      * @param {StringWriter} codeWriter
@@ -546,8 +597,6 @@ class NestCodeGenerator {
                     }
                 }
             }
-
-
 
             codeWriter.import(column, 'typeorm')
             if (useTree) {
@@ -949,6 +998,156 @@ class NestCodeGenerator {
      * @param {type.Model} elem
      * @param {Object} options
      */
+    writeModel(codeWriter, elem, options) {
+        var i, len
+        var terms = []
+
+        // Doc
+        var doc = elem.documentation.trim()
+        if (app.project.getProject().author && app.project.getProject().author.length > 0) {
+            doc += '\n@author ' + app.project.getProject().author
+        }
+        this.writeDoc(codeWriter, doc, options)
+
+        terms.push('export')
+        // Modifiers
+        var _modifiers = this.getModifiers(elem, false)
+        if (_modifiers.includes('abstract') !== true && elem.operations.some(function (op) { return op.isAbstract === true })) {
+            _modifiers.push('abstract')
+        }
+        if (_modifiers.length > 0) {
+            terms.push(_modifiers.join(' '))
+        }
+
+        // Class
+        terms.push('class')
+        if (elem.stereotype === 'fields') {
+            terms.push(elem.name)
+        } else {
+            terms.push(elem.name + 'Model')
+        }
+
+        // Extends
+        var _extends = this.getSuperClasses(elem)
+        if (_extends.length > 0) {
+            terms.push('extends ' + _extends[0].name)
+        }
+
+        // Implements
+        var _implements = this.getSuperInterfaces(elem)
+        if (_implements.length > 0) {
+            terms.push('implements ' + _implements.map(function (e) { return e.name }).join(', '))
+        }
+        codeWriter.writeLine(terms.join(' ') + ' {')
+        codeWriter.writeLine()
+        codeWriter.indent()
+
+        // Constructor
+        // this.writeConstructor(codeWriter, elem, options)
+        // codeWriter.writeLine()
+
+        // Member Variables
+        // (from attributes)
+
+        for (i = 0, len = elem.attributes.length; i < len; i++) {
+            let attr = elem.attributes[i]
+            if (attr.type instanceof type.UMLModelElement && attr.type.name.length > 0) {
+                if (attr.type.stereotype === 'fields') {
+                    attr.type.isModel = true
+                }
+                codeWriter.import(attr.type.name, this.getModulePath(attr, attr.type))
+                if (attr.type.isModel) {
+                    delete attr.type.isModel
+                }
+
+            }
+
+            if (attr.name.endsWith('?')) {
+                codeWriter.import('ApiModelPropertyOptional', '@nestjs/swagger')
+                codeWriter.writeLine('@ApiModelPropertyOptional()')
+            } else {
+                codeWriter.import('ApiModelProperty', '@nestjs/swagger')
+                codeWriter.writeLine('@ApiModelProperty()')
+            }
+
+            this.writeMemberVariable(codeWriter, attr, options)
+            codeWriter.writeLine()
+        }
+
+        // (from associations)
+        var associations = app.repository.getRelationshipsOf(elem, function (rel) {
+            return (rel instanceof type.UMLAssociation)
+        })
+        for (i = 0, len = associations.length; i < len; i++) {
+            var asso = associations[i]
+            if (asso.end1.reference === elem && asso.end2.navigable === true) {
+                this.writeModelRelation(codeWriter, {
+                    from: asso.end1,
+                    to: asso.end2
+                }, options)
+            }
+            if (asso.end2.reference === elem && asso.end1.navigable === true) {
+                this.writeModelRelation(codeWriter, {
+                    from: asso.end2,
+                    to: asso.end1
+                }, options)
+            }
+        }
+
+        // Methods
+        for (i = 0, len = elem.operations.length; i < len; i++) {
+            this.writeMethod(codeWriter, elem.operations[i], options, false, false)
+            codeWriter.writeLine()
+        }
+
+        // Extends methods
+        if (_extends.length > 0) {
+            for (i = 0, len = _extends[0].operations.length; i < len; i++) {
+                _modifiers = this.getModifiers(_extends[0].operations[i])
+                if (_modifiers.includes('abstract') === true) {
+                    this.writeMethod(codeWriter, _extends[0].operations[i], options, false, false)
+                    codeWriter.writeLine()
+                }
+            }
+        }
+
+        // Interface methods
+        for (var j = 0; j < _implements.length; j++) {
+            for (i = 0, len = _implements[j].operations.length; i < len; i++) {
+                this.writeMethod(codeWriter, _implements[j].operations[i], options, false, false)
+                codeWriter.writeLine()
+            }
+        }
+
+        // Inner Definitions
+        for (i = 0, len = elem.ownedElements.length; i < len; i++) {
+            var def = elem.ownedElements[i]
+            if (def instanceof type.UMLClass) {
+                if (def.stereotype === 'annotationType') {
+                    this.writeAnnotationType(codeWriter, def, options)
+                } else {
+                    this.writeClass(codeWriter, def, options)
+                }
+                codeWriter.writeLine()
+            } else if (def instanceof type.UMLInterface) {
+                this.writeInterface(codeWriter, def, options)
+                codeWriter.writeLine()
+            } else if (def instanceof type.UMLEnumeration) {
+                this.writeEnum(codeWriter, def, options)
+                codeWriter.writeLine()
+            }
+        }
+
+        codeWriter.outdent()
+        codeWriter.writeLine('}')
+    }
+
+    /**
+     * Write Class
+     * @param {StringWriter} codeWriter
+     * @param {type.Model} elem
+     * @param {Object} options
+     */
     writeModule(codeWriter, elem, options) {
         var i, len
         var terms = []
@@ -1038,50 +1237,88 @@ class NestCodeGenerator {
 
         codeWriter.import(elem.stereotype.name, this.getModulePath(elem, elem.stereotype));
         codeWriter.import('Crud', '@nestjsx/crud')
-
+        codeWriter.import('ApiUseTags', '@nestjs/swagger')
 
         var associations = app.repository.getRelationshipsOf(elem, function (rel) {
             return (rel instanceof type.UMLAssociation)
         })
 
-        let svcs = associations.map(asso => asso.end2.reference)
-        svcs.forEach(svc => {
-            codeWriter.import(svc.name, this.getModulePath(elem, svc));
-        })
-
-        let entities = svcs.map(svc => {
-            var generalizations = app.repository.getRelationshipsOf(svc, function (rel) {
-                return (rel instanceof type.UMLGeneralization && rel.source === svc)
+        let crudSvc
+        let crudEntity
+        let svcs = associations
+            .map(asso => asso.end2.reference)
+            .map(svc => {
+                codeWriter.import(svc.name, this.getModulePath(elem, svc));
+                return svc
             })
-            var entity = generalizations[0].stereotype
-            return entity
-        })
-        entities.forEach(entity => {
-            codeWriter.import(entity.name, this.getModulePath(elem, entity));
-        })
+            .map(svc => {
+                var generalizations = app.repository.getRelationshipsOf(svc, function (rel) {
+                    return (rel instanceof type.UMLGeneralization
+                        && rel.source === svc
+                        && rel.target.name === 'TypeOrmCrudService')
+                })
+                if (generalizations.length > 0) {
+                    crudSvc = crudSvc ? crudSvc : svc
+                    crudEntity = crudEntity ? crudEntity : generalizations[0].stereotype
+                }
+                return svc
+            })
 
-
+        let modelName = crudEntity.name + 'Model'
         codeWriter.writeLine('@Crud({')
-        codeWriter.indent()
-        codeWriter.writeLine('model: {')
-        codeWriter.indent()
-        codeWriter.writeLine(`type: ${entities[0].name},`)
-        codeWriter.outdent()
-        codeWriter.writeLine('},')
-        codeWriter.outdent()
+        if (crudEntity) {
+            crudEntity.isModel = true
+            codeWriter.import(modelName, this.getModulePath(elem, crudEntity));
+            delete crudEntity.isModel
+            codeWriter.indent()
+            codeWriter.writeLine('model: {')
+            codeWriter.indent()
+            codeWriter.writeLine(`type: ${modelName},`)
+            codeWriter.outdent()
+            codeWriter.writeLine('},')
+            codeWriter.outdent()
+        }
         codeWriter.writeLine('})')
 
-        codeWriter.writeLine(`@Controller('${pluralize(entities[0].name)}')`)
+        codeWriter.writeLine(`@ApiUseTags('${this.getModuleName(elem)}')`)
+        codeWriter.writeLine(`@Controller('${kebabCase(pluralize(crudEntity.name))}')`)
 
         terms.push('export')
         terms.push('class')
         terms.push(elem.name)
 
+        if (crudEntity) {
+            codeWriter.import('CrudController', '@nestjsx/crud')
+            terms.push('implements')
+            terms.push(`CrudController<${modelName}> `)
+        }
+
         codeWriter.writeLine(terms.join(' ') + ' {')
         codeWriter.indent()
-        codeWriter.writeLine(`constructor(${svcs
-            .map(svc => `public ${camelCase(svc.name)}: ${svc.name}`)
-            .join(', ')}) {}`)
+        if (svcs.length > 0) {
+            codeWriter.writeLine('constructor(')
+            codeWriter.indent()
+            svcs.map(svc => `${
+                svc === crudSvc ? 'public' : 'private'
+                } readonly ${
+                svc === crudSvc ? 'service' : camelCase(svc.name)
+                }: ${svc.name}`)
+                .join(',@')
+                .split('@')
+                .forEach(param => codeWriter.writeLine(param))
+            codeWriter.outdent()
+            codeWriter.writeLine(') {}')
+        } else {
+            codeWriter.writeLine('constructor() {}')
+        }
+        if (crudEntity) {
+            codeWriter.writeLine(`get base(): CrudController<${modelName}> {`)
+            codeWriter.indent()
+            codeWriter.writeLine('return this;')
+            codeWriter.outdent()
+            codeWriter.writeLine('}')
+        }
+
         codeWriter.outdent()
         codeWriter.writeLine('}')
     }

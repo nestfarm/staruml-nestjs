@@ -96,7 +96,7 @@ class NestCodeGenerator {
 
         return entities.map(entity => {
             let service = app.repository.select(entity.name + 'Service')[0]
-            let ctrl = app.factory.createModel({
+            return app.factory.createModel({
                 id: 'UMLClass',
                 parent: pkg,
                 modelInitializer: function (elem) {
@@ -111,7 +111,6 @@ class NestCodeGenerator {
                     elem.ownedElements.push(association)
                 }
             })
-            return ctrl
         })
     }
 
@@ -120,7 +119,7 @@ class NestCodeGenerator {
         let typeOrmCrudService = app.repository.select('TypeOrmCrudService')[0]
 
         return entities.map(entity => {
-            let svc = app.factory.createModel({
+            return app.factory.createModel({
                 id: 'UMLClass',
                 parent: pkg,
                 modelInitializer: function (elem) {
@@ -135,10 +134,8 @@ class NestCodeGenerator {
                     elem.ownedElements.push(generalization)
                 }
             })
-            return svc
         })
     }
-
 }
 
 /**

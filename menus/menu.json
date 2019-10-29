@@ -8,22 +8,22 @@
           "id": "tools.nestjs",
           "submenu": [
             {
-              "label": "Generate Meta...",
-              "id": "tools.nest.generate.meta",
-              "command": "nest:generate:meta"
-            },
-            {
-              "label": "Generate Crud...",
-              "id": "tools.nest.generate.crud",
-              "command": "nest:generate:crud"
+              "label": "Generate Code...",
+              "id": "tools.nest.generate.code",
+              "command": "nest:generate:code"
             },
             {
               "type": "separator"
             },
             {
-              "label": "Generate Code...",
-              "id": "tools.nest.generate.code",
-              "command": "nest:generate:code"
+              "label": "Add Meta Class...",
+              "id": "tools.nest.generate.meta",
+              "command": "nest:generate:meta"
+            },
+            {
+              "label": "Add Crud Class...",
+              "id": "tools.nest.generate.crud",
+              "command": "nest:generate:crud"
             },
             {
               "type": "separator"

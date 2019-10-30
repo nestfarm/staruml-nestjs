@@ -613,8 +613,8 @@ class NestCodeGenerator {
                 }
 
                 var joinColumn = (column === 'ManyToMany')
-                    ? ((asso.end2.reference === elem || !from.navigable) ? 'JoinTable' : '')
-                    : ((asso.end2.reference === elem) ? 'JoinColumn' : '')
+                    ? ((asso.end1.reference === elem) ? 'JoinTable' : '')
+                    : ((asso.end1.reference === elem) ? 'JoinColumn' : '')
                 if (joinColumn) {
                     codeWriter.import(joinColumn, 'typeorm')
                     codeWriter.writeLine(`@${joinColumn}()`)

@@ -1,6 +1,6 @@
-const codeGenerator = require('./code-generator')
-const crudGenerator = require('./crud-generator')
-const metaGenerator = require('./meta-generator')
+const codeGenerator = require('./lib/code-generator')
+const crudGenerator = require('./lib/crud-generator')
+const metaGenerator = require('./lib/meta-generator')
 
 function handleGenerate(base, path, options) {
   options = options || getGenOptions()

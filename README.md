@@ -10,7 +10,7 @@ The followings are entities borrowed from Salesforce CRM platform. As you can se
 
 ![](./doc/images/crm-svc.png)
 
-[ToC]
+<!-- toc -->
 
 ## Overview
 
@@ -23,6 +23,14 @@ In order to support the above features, there are a few rules need to be followe
 5. Generate nestjs code automatically
 
 As you can see only the 3rd step requires manual configuration. The library currently only runs positive test cases, and complex class/interface inheritances have not been tested. However for just entity relationship diagrams, the current implementaion is sufficient. 
+
+## Installation
+
+If the "Install From URL.." option does not for you, by putting the github project url into the text field. Please directly download the soruce code and put the `staruml-nestjs` folder under the following directory accordingly.
+
+- MAC OS: `/Users/<user>/Library/Application Support/StarUML/extensions/user`
+- Windows: `C:\Users\<user>\AppData\Roaming\StarUML\extensions\user`
+- Linux: `~/.config/StarUML/extensions/user`
 
 ## Quick Start
 

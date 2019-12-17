@@ -23,7 +23,7 @@ function handleGenerateCrud(base, path, options) {
 
 function handleGenerateMeta(base, path, options) {
   options = options || getGenOptions()
-  getModel(base).then(base => {
+  getProject(base).then(base => {
     if (base) {
       metaGenerator.generate(base, path, options)
     }
@@ -52,10 +52,10 @@ function getBase(base) {
   return Promise.resolve(base)
 }
 
-function getModel(base) {
+function getProject(base) {
   if (!base) {
     return app.elementPickerDialog
-      .showDialog('Select a base model to generate node_modules metadata', null, type.UMLModel)
+      .showDialog('Select a project to generate node_modules', null, type.Project)
       .then(function ({ buttonId, returnValue }) {
         if (buttonId === 'ok') {
           return returnValue

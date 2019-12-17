@@ -26,7 +26,7 @@ As you can see only the 3rd step requires manual configuration. The library curr
 
 ## Installation
 
-If the "Install From URL.." option does not for you, by putting the github project url into the text field. Please directly download the soruce code and put the `staruml-nestjs` folder under the following directory accordingly.
+If the "Install From URL.." option does not work for you, by putting the github project url into the text field. Please directly download the soruce code and put the `staruml-nestjs` folder under the following directory accordingly.
 
 - MAC OS: `/Users/<user>/Library/Application Support/StarUML/extensions/user`
 - Windows: `C:\Users\<user>\AppData\Roaming\StarUML\extensions\user`

@@ -1,6 +1,6 @@
 {
   "name": "staruml-nestjs",
-  "title": "StarUML NestJS",
+  "title": "NestJS CRUD",
   "description": "Generate nestjsx/crud and nestjs/swagger server based on the class diagrams drawn for entities.",
   "homepage": "https://github.com/nestfarm/staruml-nestjs",
   "issues": "https://github.com/nestfarm/staruml-nestjs/issues",

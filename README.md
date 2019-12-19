@@ -56,7 +56,7 @@ For a quick start, please just download the sample [Salesforce.mdj](./doc/sample
 3. The `node_modules` package will be generated under the project. These are mainly used as stereotypes during entity and relationship creation.
   <img src="./doc/images/node_modules.png" width="200px">
 
-##3. Draw Class Diagram
+## 3. Draw Class Diagram
 
 ### 3.1 Create Module/Folder
 
@@ -68,21 +68,21 @@ Module is just a StarUML package with stereotype `Module`. StarUML package is th
 4. Assign `<<Module>>` stereotype by clicking the magnifying glass icon besides the stereotype field.
   <img src="./doc/images/module-stereotype.png" width="300px">
 5. Type `Module` to search for the class `Module` under `nestjs/common` package. Select it and press OK button.
-<img src="./doc/images/module-stereotype2.png" width="320px">
+  <img src="./doc/images/module-stereotype2.png" width="320px">
 6. And make sure there is a yellow class icon besides the stereotype selected. If you type the `Module` string directly into the stereotype text field, the class icon won't appear.
-<img src="./doc/images/module-stereotype3.png" width="300px">
+  <img src="./doc/images/module-stereotype3.png" width="300px">
 
 ### 3.2 Create Entities
 
 Entities are just plain UML classes with stereotype `Entity`. The generated entity file name will look like `name-of-something.entity.ts`. **Note**: there will be corresponding model classes generated for every entity classes implicitly. The model class name will be the entity class name suffixed with `Model`. The generated model file name will look like `name-of-something.model.ts`.
 
 1. In order to add new Entity classes later, let's create a new package `entities` under the module we created above. This is for better organize the generated entity class files.
-<img src="./doc/images/entity-folder.png" width="200px">
+  <img src="./doc/images/entity-folder.png" width="200px">
 2. Right click the `entities` package created above.
 3. Click Add => Class.
-<img src="./doc/images/entity-class.png" width="200px">
+  <img src="./doc/images/entity-class.png" width="200px">
 4. Use `Entity` class as its stereotype. Please use the magnifying glass to search the class as we did for modules. And make sure the yellow class icon is present besides the stereotype selected.
-<img src="./doc/images/entity-stereotype.png" width="300px">
+  <img src="./doc/images/entity-stereotype.png" width="300px">
 5. Drag and drop the newly created class onto the diagram, so we can visually add columns later.
 
 ### 3.3 Create Embed Entities (FieldSet)
@@ -91,9 +91,9 @@ embedded entities are just plain UML classes with stereotype `FieldSet`. The cla
 
 1. Right click the `entities` package created above.
 2. Click Add => Class, and rename it with `FieldSet` suffix.
-<img src="./doc/images/entity-fieldset.png" width="200px">
+  <img src="./doc/images/entity-fieldset.png" width="200px">
 3. Just type `FieldSet` in the stereotype text field. **Caution**: there is no corresponding meta class for FieldSet.
-<img src="./doc/images/entity-fieldset2.png" width="300px">
+  <img src="./doc/images/entity-fieldset2.png" width="300px">
 4. Drag and drop the newly created class onto the diagram, so we can visually add columns later.
 
 ### 3.4 Create Columns
@@ -101,17 +101,17 @@ embedded entities are just plain UML classes with stereotype `FieldSet`. The cla
 #### Data Types
 
 All valid typeorm data types or FieldSet class types can be used as column data types, such as `string`, `number`, `boolean`, or `Date` etc. When referencing `FieldSet` as data types, the correct class type can be automatically resolved after typing. As you can see the yellow class icon is present besides the type property. Please double check this if any data type reference is not imported for the entity after code generation. The `FieldSet` class can resides in `<<Module>>` package other than the current entity module, such as a shared module.
-<img src="./doc/images/column-type.png" width="300px">
+  <img src="./doc/images/column-type.png" width="300px">
 
 #### Optional Columns
 
 Please add the `?` mark after the name for optional columns. In the following example, industry is an optional column.
-<img src="./doc/images/column-optional.png" width="250px">
+  <img src="./doc/images/column-optional.png" width="250px">
 
 #### Primary Columns
 
 Check the `isID` checkbox for typeorm `PrimanyColumn`. And also check the `isDerived` checkbox if it is a typeorm `PrimanyGeneratedColumn`.
-<img src="./doc/images/column-primary.png" width="300px">
+  <img src="./doc/images/column-primary.png" width="300px">
 
 ### 3.5 Establish Relationships
 
@@ -161,12 +161,12 @@ Check the `isID` checkbox for typeorm `PrimanyColumn`. And also check the `isDer
 ```
 
 If you don't want the Parent class have an array field referencing its children, but Child class have a field referencing its parent instance, or vice versa. Please disable the navigable at the Child end. Since we always draw from Child to Parent, it is the end1.navigable checkbox that needs to be unchecked. By doing this, the association at parent end will turn into an arrow.
-<img src="./doc/images/relation-navi.png" width="300px">
+  <img src="./doc/images/relation-navi.png" width="300px">
 
 #### Self Reference
 
 Self referencing is allowed, and must be one-to-many/many-to-one relationship. If typeorm tree structure is needed for the self referencing hierarchy relationship. Please assign the stereotype of the association to the `Tree` class under `typeorm` package.
-<img src="./doc/images/relation-tree.png" width="200px">
+  <img src="./doc/images/relation-tree.png" width="200px">
 
 By default `materialized-path` strategy will be used to establish the tree structure. If other strategies are used, please specify it as the association name. For a complete tree establish strategy, please refer to typeorm [Tree Entities](https://typeorm.io/#/tree-entities) document.
 
@@ -175,7 +175,7 @@ By default `materialized-path` strategy will be used to establish the tree struc
 1. Click menu item: **Tools** => **NestJS** => **Add Crud Class...**
 2. Select top or sub `<<module>>` package containing entities.
 3. Press OK, the services and controllers will be generated under their corresponding folders.
-<img src="./doc/images/crud-svc-ctrls.png" width="300px">
+  <img src="./doc/images/crud-svc-ctrls.png" width="300px">
 4. The services and controllers package in above screenshot are automatically created to organize the newly added classes. However, entities are not required to be under the entities folder, they can be anywhere within the `<Module>` package.
 
 ## 5. Generate NestJS Code
@@ -223,4 +223,4 @@ bootstrap();
 ```
 
 ## License
-[MIT]
+MIT

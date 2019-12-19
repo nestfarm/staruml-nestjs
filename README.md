@@ -222,6 +222,5 @@ async function bootstrap() {
 bootstrap();
 ```
 
-## MIT License
-
-Jeff Jianfeng Jin
+## License
+[MIT]
